@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"golang.org/x/net/websocket"
 )
@@ -41,6 +42,15 @@ func main() {
 
 }
 
+func handleErr(err error) {
+	switch err.(type) {
+	case *os.PathError:
+		log.Println("File Path Error:", err)
+	default:
+		log.Fatal("Unknown Error:", err)
+	}
+}
+
 func msgHandler(ws *websocket.Conn) {
 	defer ws.Close()
 
@@ -64,15 +74,15 @@ func msgHandler(ws *websocket.Conn) {
 		err := decoder.Decode(&msg)
 
 		if err != nil {
-			log.Fatalln(err)
+			handleErr(err)
 		}
 
 		to := msg["to"]
 		for _, c := range hub.Clients {
 			if c.Name == to {
-				err = websocket.Message.Send(c.Conn, fmt.Sprintf(`%q から %q というメッセージを受け取りました。`, msg["from"], msg["message"]))
+				err = websocket.Message.Send(c.Conn, fmt.Sprintf(`send message %q to %q `, msg["from"], msg["message"]))
 				if err != nil {
-					log.Fatalln(err)
+					handleErr(err)
 				}
 
 				break
