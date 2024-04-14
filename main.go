@@ -47,8 +47,15 @@ func handleErr(err error) {
 	case *os.PathError:
 		log.Println("File Path Error:", err)
 	default:
-		log.Fatal("Unknown Error:", err)
+		log.Println("Unknown Error:", err)
 	}
+}
+
+type Message struct {
+	Type_   string `json:"type"`
+	From    string `json:"name"`
+	To      string `json:"to"`
+	Message string `json:"message"`
 }
 
 func msgHandler(ws *websocket.Conn) {
@@ -58,6 +65,13 @@ func msgHandler(ws *websocket.Conn) {
 	if query != nil {
 		log.Print("connect from " + query.Get("name"))
 	}
+
+	defer func() {
+		deleteName := query.Get("name")
+		delete(hub.Clients, deleteName)
+		log.Println("length of hub.Clients: ", len(hub.Clients))
+		log.Println("WebSocket connection closed", deleteName)
+	}()
 
 	name := query.Get("name")
 	client := &Client{
@@ -75,19 +89,33 @@ func msgHandler(ws *websocket.Conn) {
 
 		if err != nil {
 			handleErr(err)
+			log.Println("break from loop:", err)
+			break
+		}
+
+		message := Message{
+			Type_:   msg["type"],
+			From:    msg["from"],
+			To:      msg["to"],
+			Message: msg["message"],
+		}
+
+		jsonBytes, err := json.Marshal(message)
+		if err != nil {
+			fmt.Println("encode failed:", err)
+			return
 		}
 
 		to := msg["to"]
 		for _, c := range hub.Clients {
 			if c.Name == to {
-				err = websocket.Message.Send(c.Conn, fmt.Sprintf(`send message %q to %q `, msg["from"], msg["message"]))
+				log.Printf("send message from %q to %q ", msg["from"], msg["to"])
+				err = websocket.Message.Send(c.Conn, string(jsonBytes))
 				if err != nil {
 					handleErr(err)
 				}
-
 				break
 			}
 		}
 	}
-
 }
